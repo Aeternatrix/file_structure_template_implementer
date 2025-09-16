@@ -17,6 +17,8 @@ void run_structure(char* structure_file, char* template_directory, char* root);
 ```
 
 Some examples on how to call it:
+
+lua:
 ```lua
 local ffi = require("ffi")
 
@@ -26,8 +28,8 @@ ffi.cdef[[
 local fsti = ffi.load("path/to/libfsti.so")
 fsti.run_structure("path/to/your/file.structure", "/path/to/your/templates/", "/path/to/the/destination/root/")
 ```
-
-```python
+python:
+```py
 from ctypes import *
 
 fsti = CDLL("path/to/libfsti.so")
