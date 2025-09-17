@@ -14,9 +14,10 @@
 
 #define PAGE 4096
 
-extern int sprintf(char *__restrict __s, const char *__restrict __format, ...) __attribute__ ((__nothrow__));
-extern int sscanf(const char *__restrict __s, const char *__restrict __format, ...) __attribute__ ((__nothrow__));
-extern char* getenv(const char *__name) __attribute__ ((__nothrow__)) __attribute__ ((__nonnull__(1)));
+// because I use FILE as an enum value, I can't #include <stdio.h>
+extern int      sprintf(char *__restrict __s, const char *__restrict __format, ...) __attribute__ ((__nothrow__));
+extern int      sscanf(const char *__restrict __s, const char *__restrict __format, ...) __attribute__ ((__nothrow__));
+extern char*    getenv(const char *__name) __attribute__ ((__nothrow__)) __attribute__ ((__nonnull__(1)));
 
 enum { FILE, DIRECTORY } entry_type;
 
@@ -66,7 +67,7 @@ free_entry(entry* e) {
 }
 
 static int
-is_alpha(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
+is_alpha_or_dot(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '.'; }
 
 static void
 cdoo(char* path) {
@@ -82,6 +83,13 @@ entry_name(const char* path, char* rt) {
     for (const char*c=path;*c;c++) if (*c=='/') last_slash = c;
     if (last_slash) sprintf(rt, "%s", ++last_slash);
     return rt;
+}
+
+static int
+contains_dot(const char* name) {
+    const char* last_dot = 0;
+    for (const char*c=name;*c;c++) if (*c=='.') return 1;
+    return 0;
 }
 
 static char*
@@ -117,38 +125,43 @@ streq_for_n(const char* a, const char* b, int n) {
 static int
 read_options(char* options, int default_opts) {
     int rt = default_opts;
-    int toggle = 3;
-    int a[3][3] = {
+    enum who        {USER, GROUP, OTHERS, ALL}          whom = ALL;
+    enum perms_enum {READ, WRITE, EXECUTE, PERM_COUNT}  perm = PERM_COUNT;
+    int a[ALL][PERM_COUNT] = {
         { 0, 0, 0 },
         { 0, 0, 0 },
         { 0, 0, 0 },
     };
 
-    int on = 1;
+    int toggle = 1;
 
     for (char*c = options; *c; c++) {
-        if (*c == 'u') { toggle = 0; }
-        if (*c == 'g') { toggle = 1; }
-        if (*c == 'o') { toggle = 2; }
-        if (*c == 'a') { toggle = 3; }
-        if (*c == '-') on = -1;
-        if (*c == '+') on =  1;
-        if (*c == 'r') { if (toggle == 3) { a[0][0] = 1 * on; a[1][0] = 1 * on; a[2][0] = 1 * on; } else { a[toggle][0] = 1 * on; } }
-        if (*c == 'w') { if (toggle == 3) { a[0][1] = 1 * on; a[1][1] = 1 * on; a[2][1] = 1 * on; } else { a[toggle][1] = 1 * on; } }
-        if (*c == 'x') { if (toggle == 3) { a[0][2] = 1 * on; a[1][2] = 1 * on; a[2][2] = 1 * on; } else { a[toggle][2] = 1 * on; } }
+        if (*c == 'u') { whom = USER; }
+        if (*c == 'g') { whom = GROUP; }
+        if (*c == 'o') { whom = OTHERS; }
+        if (*c == 'a') { whom = ALL; }
+        if (*c == '-') { toggle = -1; }
+        if (*c == '+') { toggle =  1; }
+        if (*c == 'r') { perm = READ; }
+        if (*c == 'w') { perm = WRITE; }
+        if (*c == 'x') { perm = EXECUTE; }
+        if (perm == PERM_COUNT) continue;
+
+        if (whom == ALL)    { a[USER][perm] = toggle; a[GROUP][perm] = toggle; a[OTHERS][perm] = toggle; }
+        else                { a[whom][perm] = toggle; }
     }
 
-    if (a[0][0] == 1)  rt |= S_IRUSR; if (a[0][0] == -1) rt &= ~S_IRUSR;
-    if (a[0][1] == 1)  rt |= S_IWUSR; if (a[0][1] == -1) rt &= ~S_IWUSR;
-    if (a[0][2] == 1)  rt |= S_IXUSR; if (a[0][2] == -1) rt &= ~S_IXUSR;
+    if (a[USER][READ]       == 1)  rt |= S_IRUSR; if (a[USER][READ]         == -1) rt &= ~S_IRUSR;
+    if (a[USER][WRITE]      == 1)  rt |= S_IWUSR; if (a[USER][WRITE]        == -1) rt &= ~S_IWUSR;
+    if (a[USER][EXECUTE]    == 1)  rt |= S_IXUSR; if (a[USER][EXECUTE]      == -1) rt &= ~S_IXUSR;
 
-    if (a[1][0] == 1)  rt |= S_IRGRP; if (a[1][0] == -1) rt &= ~S_IRGRP;
-    if (a[1][1] == 1)  rt |= S_IWGRP; if (a[1][1] == -1) rt &= ~S_IWGRP;
-    if (a[1][2] == 1)  rt |= S_IXGRP; if (a[1][2] == -1) rt &= ~S_IXGRP;
+    if (a[GROUP][READ]      == 1)  rt |= S_IRGRP; if (a[GROUP][READ]        == -1) rt &= ~S_IRGRP;
+    if (a[GROUP][WRITE]     == 1)  rt |= S_IWGRP; if (a[GROUP][WRITE]       == -1) rt &= ~S_IWGRP;
+    if (a[GROUP][EXECUTE]   == 1)  rt |= S_IXGRP; if (a[GROUP][EXECUTE]     == -1) rt &= ~S_IXGRP;
     
-    if (a[2][0] == 1)  rt |= S_IROTH; if (a[2][0] == -1) rt &= ~S_IROTH;
-    if (a[2][1] == 1)  rt |= S_IWOTH; if (a[2][1] == -1) rt &= ~S_IWOTH;
-    if (a[2][2] == 1)  rt |= S_IXOTH; if (a[2][2] == -1) rt &= ~S_IXOTH;
+    if (a[OTHERS][READ]     == 1)  rt |= S_IROTH; if (a[OTHERS][READ]       == -1) rt &= ~S_IROTH;
+    if (a[OTHERS][WRITE]    == 1)  rt |= S_IWOTH; if (a[OTHERS][WRITE]      == -1) rt &= ~S_IWOTH;
+    if (a[OTHERS][EXECUTE]  == 1)  rt |= S_IXOTH; if (a[OTHERS][EXECUTE]    == -1) rt &= ~S_IXOTH;
 
     return rt;
 }
@@ -240,7 +253,7 @@ run_structure(const char* structure_file, const char* template_directory, const 
         char *c = line;
         for (int count = 0; *c; c++, count++) {
             if (*c == '+') depth_curr = count;
-            if (is_alpha(*c)) {
+            if (is_alpha_or_dot(*c)) {
                 if (depth_curr < depth_last) {
                     cdoo(working_path);
                     cdoo(working_path);
@@ -252,34 +265,22 @@ run_structure(const char* structure_file, const char* template_directory, const 
                 depth_last = depth_curr;
 
 
-                if (sscanf(c, "%[^.].%s %s", name, ext, options) == 3) {
-                    sprintf(path, "%s/%s.%s", working_path, name, ext);
-                    sprintf(working_path, "%s", path);
-                    {
-                        sprintf(entries[entry_ptr].path, "%s", path);
-                        entries[entry_ptr].options = read_options(options, df_perm_flags);
-                        entry_ptr++;
-                    }
-                } else if (sscanf(c, "%s %s", name, options) == 2) {
+                if (sscanf(c, "%s %s", name, options) == 2) {
                     sprintf(path, "%s/%s", working_path, name);
                     sprintf(working_path, "%s", path);
                     {
                         sprintf(entries[entry_ptr].path, "%s", path);
                         entries[entry_ptr].options = read_options(options, df_perm_flags);
-                        entry_ptr++;
-                    }
-                } else if (sscanf(c, "%[^.].%s", name, ext) == 2) {
-                    sprintf(path, "%s/%s.%s", working_path, name, ext);
-                    sprintf(working_path, "%s", path);
-                    {
-                        sprintf(entries[entry_ptr].path, "%s", path);
-                        entries[entry_ptr].options = df_perm_flags;
                         entry_ptr++;
                     }
                 } else if (sscanf(c, "%s", name) == 1) {
                     sprintf(path, "%s/%s", working_path, name);
                     sprintf(working_path, "%s", path);
-                    {
+                    if (contains_dot(name)) {
+                        sprintf(entries[entry_ptr].path, "%s", path);
+                        entries[entry_ptr].options = df_perm_flags;
+                        entry_ptr++;
+                    } else {
                         sprintf(entries[entry_ptr].path, "%s", path);
                         entries[entry_ptr].is_directory = 1;
                         entry_ptr++;
@@ -340,7 +341,7 @@ body:
                     if (streq (c->line, "comment_header")) {
                         char cmt[33] = {};
                         sprintf(cmt, "%s ", c->opt);
-                        entry_name(e->path,     name);
+                        entry_name(e->path, name);
 
                         char* rep = calloc(PAGE, sizeof(char));
                         comment_header(name, cmt, template_content, rep);
