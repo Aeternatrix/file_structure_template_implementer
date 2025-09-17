@@ -1,6 +1,5 @@
 # file_structure_template_implementer
-A C shared object that builds a project structure.
-Almost certainly does not work on Windows.
+A C shared object that builds a project structure. Almost certainly does not work on Windows.
 
 ## Building
 Run the build.sh script or
@@ -42,24 +41,29 @@ Format:
 .
 +-- file <options>
 +-- file.ext <options>
++-- file.ext
++-- .file
 +-- folder
-    +-- subfolder
     +-- subfile <options>
     +-- subfile.ext <options>
+    +-- subfile.ext
+    +-- .subfile
+    +-- subfolder
 --- <name> <occurrence>
 //-- <template name> <opt>
 <content>
 ```
-Note: <opt> is only used with exactly 'comment_header' see below.
+Note: \<opt> is only used with exactly 'comment_header' see below.
 
 ### Options
-<options> is to do with file read/write/execute permissions. The default permissions are:
-user  (u) read/write (r/w)
-group (g) read/write (r/w)
-other (o) read       (r/w)
+\<options> is to do with file read/write/execute permissions. The default permissions are:
+- user  (u) read/write (r/w)
+- group (g) read/write (r/w)
+- other (o) read       (r/w)
 
 The valid characters are: ugoa+-rwx
-It is read left to right; when ugoa is not specified, it applies to all (a); when +- is not specified, it assumes +.
+
+It is read left to right; when ugoa is not specified, it applies to all (a); when +- is not specified, it assumes + until otherwise specified.
 
 ### Example
 c.structure (I give them the ext .structure, this is not enforced in any way)
@@ -84,13 +88,9 @@ int main() {
 
 #### Comment Header
 If the template called is exactly "comment_header" it will scan the template contents for the following, and replace them:
-%FILE% → the name of the file
-%DATE% → the current date and time (%d-%m-%Y @ %H-%M-%S)
-%YEAR% → the current year (%Y)
-%ME%   → the user (acquired from $HOME environment variable)
+- %FILE% → the name of the file
+- %DATE% → the current date and time (%d-%m-%Y @ %H-%M-%S)
+- %YEAR% → the current year (%Y)
+- %ME%   → the user (acquired from $HOME environment variable)
 
-Additionally, it will prepend all lines with the appropriate comment string provided (<opt>). If no opt is provided, it will insert a space.
-
-TODO
----
-Instead of sscanf on file.ext, use sscanf to identify it, then last dot to get the true name and ext. It currently doesn't matter, as the .ext is just a way to identify it as a file. No one tell android and... java? I think they both have directories like, com.something.something
+Additionally, it will prepend all lines with the appropriate comment string provided (\<opt>). If no opt is provided, it will insert a space.
